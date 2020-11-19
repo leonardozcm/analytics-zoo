@@ -7,6 +7,7 @@ import importlib.machinery
 import hashlib
 import sys
 from logging import getLogger
+import types
 
 __all__ = ('extend', 'extend_ray', 'extend_cloudpickle')
 
@@ -74,11 +75,16 @@ def compress(packagename, path):
     return tar.getvalue()
 
 
-def import_compressed(name, package, class_name):
+def import_compressed(name, package, class_name,is_anyclass):
     res = package.load(name)
     if getattr(res, class_name, None):
-        class_type = getattr(res, class_name)
-        return class_type.__new__(class_type)
+        obj_type = getattr(res, class_name)
+
+        return obj_type.__new__(obj_type) if is_anyclass else types.FunctionType(getattr(obj_type, "__code__", ""),
+                                                                                 getattr(obj_type, "__globals__", ""),
+                                                                                 name=getattr(obj_type, "__name__", ""),
+                                                                                 argdefs=getattr(obj_type, "__defaults__", ""),
+                                                                                 closure=getattr(obj_type, "__closure__", ""))
     else:
         return res
 
@@ -101,7 +107,9 @@ def is_local(module):
     if path is None:
         return False
 
-    if path.startswith(python_lib_path):
+    #if your zoo is not install by whl, to debug codes you may exclude your az path from loacl path
+    #to avoid infinite resursion.
+    if path.startswith(python_lib_path) or path.startswith("/home/arda/Project/analytics-zoo"):
         return False
 
     return True
@@ -157,7 +165,20 @@ def extend(base):
                     else:
                         print("get local {} in save_module, path is {}".format(module.__name__, module.__file__))
                         package = self.compress_package(packagename(module), get_path(module))
-                    args = (module.__name__, package, obj.__class__.__name__)
+                    t = type(obj)
+                    try:
+                        # todo:Not quite sure about verification
+                        is_anyclass = t.__name__=="classobj"
+                    except TypeError:  # t is not a class (old Boost; see SF #502085)
+                        is_anyclass = False
+
+                    if is_anyclass :
+                        args = (module.__name__, package, obj.__class__.__name__,is_anyclass)
+                    elif isinstance(obj, types.FunctionType):
+                        args = (module.__name__, package, obj.__name__,is_anyclass)
+                    else:
+                        # fallback to save_global, including the Pickler's distpatch_table
+                        return NotImplemented
                     return import_compressed, args, obj.__dict__
             return super().reducer_override(obj)
 
