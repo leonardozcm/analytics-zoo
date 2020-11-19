@@ -107,9 +107,10 @@ def is_local(module):
     if path is None:
         return False
 
-    #if your zoo is not install by whl, to debug codes you may exclude your az path from loacl path
-    #to avoid infinite resursion.
-    if path.startswith(python_lib_path) or path.startswith("/home/arda/Project/analytics-zoo"):
+    # if your zoo is not installed by whl,
+    # to debug codes you may exclude your az path from loacl path
+    # to avoid infinite resursion.
+    if path.startswith(python_lib_path):
         return False
 
     return True
