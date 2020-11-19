@@ -69,7 +69,7 @@ class Package:
 def compress(packagename, path):
     tar = BytesIO()
     with TarFile(fileobj=tar, mode='w') as tf:
-       tf.add(path, packagename)
+        tf.add(path, packagename)
     # TODO: This was originally gzipped, but the gzipped value seems to change on repeated compressions, breaking hashing.
     # Looks like the issue is a timestamp that can be overriden with a parameter, but let's leave it uncompressed for now.
     return tar.getvalue()
