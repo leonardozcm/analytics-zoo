@@ -69,18 +69,18 @@ class Package:
 def compress(packagename, path):
     tar = BytesIO()
     with TarFile(fileobj=tar, mode='w') as tf:
-        tf.add(path, packagename)
+       tf.add(path, packagename)
     # TODO: This was originally gzipped, but the gzipped value seems to change on repeated compressions, breaking hashing.
     # Looks like the issue is a timestamp that can be overriden with a parameter, but let's leave it uncompressed for now.
     return tar.getvalue()
 
 
-def import_compressed(name, package, class_name,is_anyclass):
+def import_compressed(name, package, class_name,is_anyfunc):
     res = package.load(name)
     if getattr(res, class_name, None):
         obj_type = getattr(res, class_name)
 
-        return obj_type.__new__(obj_type) if is_anyclass else types.FunctionType(getattr(obj_type, "__code__", ""),
+        return obj_type.__new__(obj_type) if not is_anyfunc else types.FunctionType(getattr(obj_type, "__code__", ""),
                                                                                  getattr(obj_type, "__globals__", ""),
                                                                                  name=getattr(obj_type, "__name__", ""),
                                                                                  argdefs=getattr(obj_type, "__defaults__", ""),
@@ -166,20 +166,18 @@ def extend(base):
                     else:
                         print("get local {} in save_module, path is {}".format(module.__name__, module.__file__))
                         package = self.compress_package(packagename(module), get_path(module))
-                    t = type(obj)
-                    try:
-                        # todo:Not quite sure about verification
-                        is_anyclass = t.__name__=="classobj"
-                    except TypeError:  # t is not a class (old Boost; see SF #502085)
-                        is_anyclass = False
 
-                    if is_anyclass :
-                        args = (module.__name__, package, obj.__class__.__name__,is_anyclass)
-                    elif isinstance(obj, types.FunctionType):
-                        args = (module.__name__, package, obj.__name__,is_anyclass)
+                    try:
+                        # todo:Should check class type first
+                        is_anyfunc=isinstance(obj, types.FunctionType)
+                    except TypeError:  # t is not a class (old Boost; see SF #502085)
+                        is_anyfunc = False
+
+                    if is_anyfunc:
+                        args = (module.__name__, package, obj.__name__,is_anyfunc)
                     else:
-                        # fallback to save_global, including the Pickler's distpatch_table
-                        return NotImplemented
+                        args = (module.__name__, package, obj.__class__.__name__,is_anyfunc)
+
                     return import_compressed, args, obj.__dict__
             return super().reducer_override(obj)
 
